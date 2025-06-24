@@ -1,0 +1,59 @@
+name: trading_app
+description: Application de trading automatique multi-plateforme
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Gestion d'état
+  provider: ^6.1.1
+  
+  # Appels API et authentification
+  http: ^1.1.0
+  shared_preferences: ^2.2.2
+  
+  # Interface utilisateur
+  cupertino_icons: ^1.0.2
+  flutter_svg: ^2.0.9
+  cached_network_image: ^3.3.0
+  
+  # Navigation
+  go_router: ^12.1.3
+  
+  # Graphiques et visualisation
+  fl_chart: ^0.66.0
+  
+  # Utilitaires
+  intl: ^0.19.0
+  url_launcher: ^6.2.2
+  
+  # Firebase (pour Google OAuth)
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  google_sign_in: ^6.1.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+  
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700 
