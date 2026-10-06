@@ -70,3 +70,11 @@ def test_full_loop_with_fake_broker(capsys):
     assert len(FB.sent) == 1
     sym, side, lots, sl, tp = FB.sent[0]
     assert side in (-1, 1) and lots > 0 and (sl < tp if side == 1 else sl > tp)
+
+
+def test_rank_cli_loads_csv(tmp_path, capsys):
+    from mt5bot.rank import load_dir
+    fake(1200, seed=5).to_csv(tmp_path / "EURUSD.csv", index=False)
+    (tmp_path / "bad.csv").write_text("a,b\n1,2\n")
+    data = load_dir(str(tmp_path))
+    assert list(data) == ["EURUSD"] and len(data["EURUSD"]) == 1200

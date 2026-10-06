@@ -23,3 +23,10 @@ Garde-fous supplémentaires : classement validé hors échantillon (70 % entraî
 filtre de spread, détection des suffixes de symboles du broker (`EURUSD.m`), mode de remplissage adapté au symbole,
 vérification du bouton « Algo Trading » en mode live, contrôle du retour de chaque ordre.
 Tests : `python -m pytest` (aucune connexion MT5 requise).
+
+### Valider les paires hors connexion
+Exporte tes barres en CSV (colonnes open, high, low, close), un fichier par symbole (`EURUSD.csv`), puis :
+```
+python -m mt5bot.rank dossier_csv --top 3
+```
+Une CI GitHub (`.github/workflows/tests.yml`) lance les tests à chaque push.
