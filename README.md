@@ -34,3 +34,8 @@ Une CI GitHub (`.github/workflows/tests.yml`) lance les tests à chaque push.
 ### Break-even (optionnel)
 `BREAK_EVEN_R=1.0` déplace le stop à l'entrée une fois +1R atteint (modélisé aussi dans le backtest).
 Désactivé par défaut : sur mes données de test il a réduit l'espérance. Compare avec `mt5bot.rank` sur ton historique avant de l'activer.
+
+### Détection automatique de MT5
+Le robot trouve seul le terminal MT5 (Program Files, AppData, lecteurs C: à F:) et, si `MT5_LOGIN` est vide,
+se rattache au compte déjà connecté dans MT5 : aucun identifiant à écrire. Ouvre MT5, connecte-toi à un compte
+**démo**, active « Algo Trading », puis lance `python -m mt5bot.bot`.

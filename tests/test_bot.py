@@ -91,3 +91,25 @@ def test_break_even_in_backtest_and_bot():
     assert break_even_target(NS(type=0, price_open=1.1, sl=1.1, tp=1.2), 1.2, 1.2, be_r=1.0) is None  # déjà au BE
     sell = NS(type=1, price_open=1.1000, sl=1.1015, tp=1.0955)
     assert break_even_target(sell, bid=1.0983, ask=1.0984, be_r=1.0) == 1.1000
+
+
+def test_detect_terminal(tmp_path):
+    from mt5bot.detect import find_terminal, find_terminals
+    old = tmp_path / "MetaTrader 5 Old"; new = tmp_path / "MetaTrader 5 EXNESS"
+    for d in (old, new):
+        d.mkdir(); (d / "terminal64.exe").write_text("x")
+    import os; os.utime(old / "terminal64.exe", (1, 1))
+    env = {"PROGRAMFILES": str(tmp_path)}
+    assert find_terminal(env) == str(new / "terminal64.exe")          # le plus récent d'abord
+    assert len(find_terminals(env)) == 2
+    env["MT5_PATH"] = str(old / "terminal64.exe")
+    assert find_terminal(env) == str(old / "terminal64.exe")          # chemin explicite prioritaire
+    assert find_terminal({}) is None or isinstance(find_terminal({}), str)
+
+
+def test_validate_allows_no_credentials():
+    from mt5bot.config import Config
+    Config(login=0, password="", server="").validate()
+    import pytest
+    with pytest.raises(ValueError):
+        Config(login=5, password="", server="").validate()

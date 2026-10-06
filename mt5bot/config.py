@@ -54,5 +54,6 @@ class Config:
             raise ValueError("RISK_PER_TRADE doit être entre 0 et 0.05")
         if self.mode not in ("demo", "live"):
             raise ValueError("BOT_MODE doit valoir demo ou live")
-        if not (self.login and self.password and self.server):
-            raise ValueError("MT5_LOGIN / MT5_PASSWORD / MT5_SERVER manquants (voir .env.example)")
+        if self.login and not (self.password and self.server):
+            raise ValueError("MT5_LOGIN renseigné : MT5_PASSWORD et MT5_SERVER sont aussi requis "
+                             "(ou laisse les trois vides pour utiliser le compte déjà connecté dans MT5)")

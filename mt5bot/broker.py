@@ -1,6 +1,7 @@
 """Couche MT5 (import paresseux : la librairie n'existe que sous Windows)."""
 import pandas as pd
 from .config import Config
+from .detect import find_terminal
 
 TF = {"M5": "TIMEFRAME_M5", "M15": "TIMEFRAME_M15", "M30": "TIMEFRAME_M30",
       "H1": "TIMEFRAME_H1", "H4": "TIMEFRAME_H4", "D1": "TIMEFRAME_D1"}
@@ -10,11 +11,21 @@ class Broker:
     def __init__(self, cfg: Config):
         import MetaTrader5 as mt5
         self.mt5, self.cfg = mt5, cfg
-        kw = dict(login=cfg.login, password=cfg.password, server=cfg.server)
-        if cfg.path:
-            kw["path"] = cfg.path
-        if not mt5.initialize(**kw):
-            raise RuntimeError(f"Connexion MT5 impossible : {mt5.last_error()}")
+        # Sans identifiants, on se rattache au compte déjà connecté dans le terminal MT5 ouvert.
+        kw = {}
+        if cfg.login:
+            kw.update(login=cfg.login, password=cfg.password, server=cfg.server)
+        path = cfg.path or find_terminal()
+        if path:
+            kw["path"] = path
+            print(f"Terminal MT5 détecté : {path}")
+        ok = mt5.initialize(**kw)
+        if not ok and "path" in kw:  # chemin détecté inutilisable : on laisse MT5 le retrouver seul
+            kw.pop("path")
+            ok = mt5.initialize(**kw)
+        if not ok:
+            raise RuntimeError(f"Connexion MT5 impossible : {mt5.last_error()} "
+                               "(ouvre MT5 et connecte-toi à un compte, ou renseigne .env)")
         acc = mt5.account_info()
         is_real = acc.trade_mode == mt5.ACCOUNT_TRADE_MODE_REAL
         self.dry_run = not cfg.live
