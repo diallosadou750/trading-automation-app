@@ -4,9 +4,20 @@ import time
 from datetime import date
 
 from .config import Config
-from .strategy import add_signals, SL_ATR, TP_ATR
+from .strategy import add_signals, SL_ATR, TP_ATR, BE_R
 from .backtest import rank_pairs
 from .risk import lot_size, daily_loss_hit
+
+
+def break_even_target(pos, bid, ask, be_r=BE_R):
+    """Nouveau SL (prix d'entrée) si le gain a atteint be_r x le risque initial, sinon None."""
+    buy = pos.type == 0
+    risk = abs(pos.price_open - pos.sl) if pos.sl else 0
+    if not be_r or risk <= 0:
+        return None
+    already = pos.sl >= pos.price_open if buy else pos.sl <= pos.price_open
+    gain = (bid - pos.price_open) if buy else (pos.price_open - ask)
+    return pos.price_open if (not already and gain >= be_r * risk) else None
 
 
 def run(cfg: Config, broker=None, once=False, sleep=time.sleep):
@@ -37,7 +48,13 @@ def run(cfg: Config, broker=None, once=False, sleep=time.sleep):
         if daily_loss_hit(day_equity, acc.equity, cfg.max_daily_loss):
             print("Perte journalière max atteinte : pause jusqu'à demain.")
         else:
-            held = {p.symbol for p in b.positions()}
+            positions = b.positions()
+            held = {p.symbol for p in positions}
+            for pos in positions:
+                _, tick = b.symbol(pos.symbol)
+                target = break_even_target(pos, tick.bid, tick.ask) if tick else None
+                if target is not None and hasattr(b, "move_sl"):
+                    b.move_sl(pos, target)
             for s in best:
                 if s in held or len(held) >= cfg.max_open_positions:
                     continue

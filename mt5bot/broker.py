@@ -80,3 +80,15 @@ class Broker:
         print(f"[ORDRE {'OK' if ok else 'ÉCHEC'}] {symbol} {side_txt} {lots} -> "
               f"{getattr(res, 'retcode', None)} {getattr(res, 'comment', '')}")
         return res if ok else None
+
+    def move_sl(self, pos, new_sl):
+        info, _ = self.symbol(pos.symbol)
+        new_sl = round(new_sl, info.digits)
+        if self.dry_run:
+            print(f"[SIMULATION] {pos.symbol} SL -> {new_sl} (break-even)")
+            return True
+        res = self.mt5.order_send(dict(action=self.mt5.TRADE_ACTION_SLTP, position=pos.ticket,
+                                       symbol=pos.symbol, sl=new_sl, tp=pos.tp, magic=self.cfg.magic))
+        ok = res is not None and res.retcode == self.mt5.TRADE_RETCODE_DONE
+        print(f"[BREAK-EVEN {'OK' if ok else 'ÉCHEC'}] {pos.symbol} -> {getattr(res, 'retcode', None)}")
+        return ok

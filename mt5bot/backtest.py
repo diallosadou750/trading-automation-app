@@ -1,10 +1,10 @@
 """Backtest simple (SL/TP en ATR, entrée à l'ouverture suivante) et classement des paires."""
 import numpy as np
 import pandas as pd
-from .strategy import add_signals, SL_ATR, TP_ATR
+from .strategy import add_signals, SL_ATR, TP_ATR, BE_R
 
 
-def backtest(df: pd.DataFrame, cost_r: float = 0.0) -> dict:
+def backtest(df: pd.DataFrame, cost_r: float = 0.0, be_r=BE_R) -> dict:
     d = add_signals(df).reset_index(drop=True)
     trades = []  # résultats en multiples de R
     i, n = 200, len(d)
@@ -17,16 +17,20 @@ def backtest(df: pd.DataFrame, cost_r: float = 0.0) -> dict:
         a = d.atr.iloc[i]
         sl, tp = entry - s * SL_ATR * a, entry + s * TP_ATR * a
         r = None
+        be_level = entry + s * be_r * SL_ATR * a if be_r else None
         for j in range(i + 1, n):
             hi, lo = d.high.iloc[j], d.low.iloc[j]
             hit_sl = lo <= sl if s == 1 else hi >= sl
             hit_tp = hi >= tp if s == 1 else lo <= tp
             if hit_sl:  # hypothèse prudente : SL d'abord si les deux sont touchés
-                r = -1.0
+                r = (s * (sl - entry)) / (SL_ATR * a)  # -1 au SL initial, 0 au break-even
             elif hit_tp:
                 r = TP_ATR / SL_ATR
             if r is not None:
                 break
+            # break-even : effectif à partir de la bougie suivante (hypothèse prudente)
+            if be_level is not None and (hi >= be_level if s == 1 else lo <= be_level):
+                sl, be_level = entry, None
         if r is None:
             break
         r -= cost_r

@@ -78,3 +78,16 @@ def test_rank_cli_loads_csv(tmp_path, capsys):
     (tmp_path / "bad.csv").write_text("a,b\n1,2\n")
     data = load_dir(str(tmp_path))
     assert list(data) == ["EURUSD"] and len(data["EURUSD"]) == 1200
+
+
+def test_break_even_in_backtest_and_bot():
+    from types import SimpleNamespace as NS
+    from mt5bot.bot import break_even_target
+    a, b = backtest(fake(4000, seed=7), 0.05, be_r=None), backtest(fake(4000, seed=7), 0.05, be_r=1.0)
+    assert a["trades"] > 0 and b["trades"] > 0
+    buy = NS(type=0, price_open=1.1000, sl=1.0985, tp=1.1045)
+    assert break_even_target(buy, bid=1.1014, ask=1.1015, be_r=1.0) is None          # < 1R
+    assert break_even_target(buy, bid=1.1016, ask=1.1017, be_r=1.0) == 1.1000        # >= 1R
+    assert break_even_target(NS(type=0, price_open=1.1, sl=1.1, tp=1.2), 1.2, 1.2, be_r=1.0) is None  # déjà au BE
+    sell = NS(type=1, price_open=1.1000, sl=1.1015, tp=1.0955)
+    assert break_even_target(sell, bid=1.0983, ask=1.0984, be_r=1.0) == 1.1000

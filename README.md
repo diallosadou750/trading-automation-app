@@ -30,3 +30,7 @@ Exporte tes barres en CSV (colonnes open, high, low, close), un fichier par symb
 python -m mt5bot.rank dossier_csv --top 3
 ```
 Une CI GitHub (`.github/workflows/tests.yml`) lance les tests à chaque push.
+
+### Break-even (optionnel)
+`BREAK_EVEN_R=1.0` déplace le stop à l'entrée une fois +1R atteint (modélisé aussi dans le backtest).
+Désactivé par défaut : sur mes données de test il a réduit l'espérance. Compare avec `mt5bot.rank` sur ton historique avant de l'activer.
