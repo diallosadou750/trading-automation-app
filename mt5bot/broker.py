@@ -17,11 +17,22 @@ class Broker:
             raise RuntimeError(f"Connexion MT5 impossible : {mt5.last_error()}")
         acc = mt5.account_info()
         is_real = acc.trade_mode == mt5.ACCOUNT_TRADE_MODE_REAL
-        if is_real and not cfg.live:
-            print("Compte RÉEL détecté mais mode live non confirmé : aucun ordre ne sera envoyé.")
         self.dry_run = not cfg.live
+        if not self.dry_run and not mt5.terminal_info().trade_allowed:
+            raise RuntimeError("Active le bouton « Algo Trading » dans MT5 (trading automatique désactivé).")
+        if is_real and self.dry_run:
+            print("Compte RÉEL détecté mais mode live non confirmé : aucun ordre ne sera envoyé.")
         print(f"Connecté : {acc.login} @ {acc.server} ({'RÉEL' if is_real else 'démo'}) "
               f"solde={acc.balance} {acc.currency} | ordres {'SIMULÉS' if self.dry_run else 'RÉELS'}")
+
+    def resolve(self, name):
+        """Trouve le symbole du broker (suffixes type EURUSD.m, EURUSDm, EURUSD#)."""
+        if self.mt5.symbol_info(name):
+            return name
+        for s in self.mt5.symbols_get() or []:
+            if s.name.startswith(name) and len(s.name) <= len(name) + 3:
+                return s.name
+        return None
 
     def rates(self, symbol, count=3000) -> pd.DataFrame:
         self.mt5.symbol_select(symbol, True)
@@ -41,17 +52,31 @@ class Broker:
     def symbol(self, s):
         return self.mt5.symbol_info(s), self.mt5.symbol_info_tick(s)
 
+    def _filling(self, info):
+        m = info.filling_mode  # bitmask : 1 = FOK, 2 = IOC
+        if m & 2:
+            return self.mt5.ORDER_FILLING_IOC
+        if m & 1:
+            return self.mt5.ORDER_FILLING_FOK
+        return self.mt5.ORDER_FILLING_RETURN
+
     def send(self, symbol, side, lots, sl, tp):
         info, tick = self.symbol(symbol)
+        if info is None or tick is None or not info.trade_mode == self.mt5.SYMBOL_TRADE_MODE_FULL:
+            print(f"[SKIP] {symbol} : marché fermé ou trading indisponible")
+            return None
         price = tick.ask if side == 1 else tick.bid
+        sl, tp = round(sl, info.digits), round(tp, info.digits)
+        side_txt = "BUY" if side == 1 else "SELL"
+        if self.dry_run:
+            print(f"[SIMULATION] {symbol} {side_txt} {lots} @ {price} sl={sl} tp={tp}")
+            return None
         req = dict(action=self.mt5.TRADE_ACTION_DEAL, symbol=symbol, volume=lots,
                    type=self.mt5.ORDER_TYPE_BUY if side == 1 else self.mt5.ORDER_TYPE_SELL,
-                   price=price, sl=round(sl, info.digits), tp=round(tp, info.digits), deviation=20,
-                   magic=self.cfg.magic, comment="mt5bot", type_time=self.mt5.ORDER_TIME_GTC,
-                   type_filling=self.mt5.ORDER_FILLING_IOC)
-        if self.dry_run:
-            print(f"[SIMULATION] {symbol} {'BUY' if side == 1 else 'SELL'} {lots} @ {price} sl={sl} tp={tp}")
-            return None
+                   price=price, sl=sl, tp=tp, deviation=20, magic=self.cfg.magic, comment="mt5bot",
+                   type_time=self.mt5.ORDER_TIME_GTC, type_filling=self._filling(info))
         res = self.mt5.order_send(req)
-        print(f"[ORDRE] {symbol} -> retcode={res.retcode} {res.comment}")
-        return res
+        ok = res is not None and res.retcode == self.mt5.TRADE_RETCODE_DONE
+        print(f"[ORDRE {'OK' if ok else 'ÉCHEC'}] {symbol} {side_txt} {lots} -> "
+              f"{getattr(res, 'retcode', None)} {getattr(res, 'comment', '')}")
+        return res if ok else None

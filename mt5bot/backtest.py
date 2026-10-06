@@ -4,7 +4,7 @@ import pandas as pd
 from .strategy import add_signals, SL_ATR, TP_ATR
 
 
-def backtest(df: pd.DataFrame, spread_frac: float = 0.0) -> dict:
+def backtest(df: pd.DataFrame, cost_r: float = 0.0) -> dict:
     d = add_signals(df).reset_index(drop=True)
     trades = []  # résultats en multiples de R
     i, n = 200, len(d)
@@ -29,7 +29,7 @@ def backtest(df: pd.DataFrame, spread_frac: float = 0.0) -> dict:
                 break
         if r is None:
             break
-        r -= spread_frac
+        r -= cost_r
         trades.append(r)
         i = j + 1
     t = np.array(trades)
@@ -42,11 +42,18 @@ def backtest(df: pd.DataFrame, spread_frac: float = 0.0) -> dict:
                 max_dd_r=float((np.maximum.accumulate(eq) - eq).max()))
 
 
-def rank_pairs(data: dict, top_n: int = 3, min_trades: int = 15) -> pd.DataFrame:
-    """Garde uniquement les paires à espérance positive et profit factor > 1.2."""
-    rows = [dict(symbol=s, **backtest(df)) for s, df in data.items()]
+def rank_pairs(data: dict, top_n: int = 3, min_trades: int = 15, cost_r: float = 0.05,
+               train_frac: float = 0.7) -> pd.DataFrame:
+    """Classe sur 70 % de l'historique (entraînement) et exige aussi un résultat positif sur
+    les 30 % restants (hors échantillon), pour limiter le sur-ajustement. Coûts inclus."""
+    rows = []
+    for s, df in data.items():
+        k = int(len(df) * train_frac)
+        full, oos = backtest(df, cost_r), backtest(df.iloc[k - 250:].reset_index(drop=True), cost_r)
+        rows.append(dict(symbol=s, **full, oos_trades=oos["trades"], oos_expectancy_r=oos["expectancy_r"]))
     r = pd.DataFrame(rows)
     if r.empty:
         return r
-    ok = r[(r.trades >= min_trades) & (r.expectancy_r > 0) & (r.profit_factor > 1.2)]
+    ok = r[(r.trades >= min_trades) & (r.expectancy_r > 0) & (r.profit_factor > 1.2)
+           & (r.oos_trades >= 3) & (r.oos_expectancy_r > 0)]
     return ok.sort_values("expectancy_r", ascending=False).head(top_n).reset_index(drop=True)

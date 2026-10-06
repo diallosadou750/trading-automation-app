@@ -27,3 +27,46 @@ def test_lot_size_and_daily_loss():
     assert lot_size(10000, 0.01, 0.0015, 1.0, 0.00001, 0.01, 100, 0.01) == 0.66
     assert lot_size(10000, 0.01, 0, 1, 1e-5, 0.01, 100, 0.01) == 0
     assert daily_loss_hit(10000, 9690, 0.03) and not daily_loss_hit(10000, 9800, 0.03)
+
+
+def test_lot_rounding_float_safe():
+    assert lot_size(10000, 0.01, 0.0014, 1.0, 0.00001, 0.01, 100, 0.01) == 0.71
+
+
+def test_full_loop_with_fake_broker(capsys):
+    """Boucle complète avec un faux broker : aucune connexion MT5 nécessaire."""
+    from types import SimpleNamespace as NS
+    from mt5bot.config import Config
+    from mt5bot import bot as botmod
+    from mt5bot.strategy import add_signals
+
+    # série qui finit par un croisement haussier pour déclencher un signal
+    base = fake(1500, seed=3)
+    d = add_signals(base)
+    idx = d.index[d.signal != 0]
+    k = int(idx[-1]) + 1  # bougie clôturée = juste après le signal ; +1 bougie en cours
+    series = base.iloc[: k + 1].copy()
+    series["time"] = pd.date_range("2024-01-01", periods=len(series), freq="h")
+
+    class FB:
+        sent = []
+        def resolve(self, s): return s
+        def account(self): return NS(equity=10000, balance=10000)
+        def positions(self): return []
+        def rates(self, s, count=3000): return series.iloc[-count:].reset_index(drop=True)
+        def symbol(self, s):
+            px = float(series.close.iloc[-1])
+            return (NS(trade_tick_value=1.0, trade_tick_size=1e-5, volume_min=0.01, volume_max=100, volume_step=0.01),
+                    NS(ask=px + 1e-6, bid=px))
+        def send(self, *a): FB.sent.append(a)
+
+    cfg = Config(symbols=["X"], login=1, password="p", server="s")
+    orig = botmod.rank_pairs
+    botmod.rank_pairs = lambda data, n, cost_r=0.05: pd.DataFrame({"symbol": list(data)})
+    try:
+        botmod.run(cfg, broker=FB(), once=True)
+    finally:
+        botmod.rank_pairs = orig
+    assert len(FB.sent) == 1
+    sym, side, lots, sl, tp = FB.sent[0]
+    assert side in (-1, 1) and lots > 0 and (sl < tp if side == 1 else sl > tp)
